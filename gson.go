@@ -12,74 +12,94 @@ type gson struct {
 }
 */
 
-func isWhiteSpace(strItem string) bool {
-	return " " == strItem || "\t" == strItem || "\n" == strItem
+func isWhiteSpace(item byte) bool {
+	return ' ' == item || '\t' == item || '\n' == item
 }
 
-func escapeWhiteSpace(scanner *bufio.Scanner) {
-	for scanner.Scan() {
-		if isWhiteSpace(scanner.Text()) {
+func escapeWhiteSpace(reader *bufio.Reader) {
+	for {
+		item, err := reader.ReadByte()
+		if nil == err && isWhiteSpace(item) {
 			continue
+		} else if nil != err {
+			break
 		}
+		//not white space, push back the byte
+		reader.UnreadByte()
 	}
 }
 
-func parseValue(scanner *bufio.Scanner) Value {
-	switch scanner.Text() {
-	case "{":
-		parseObject(scanner)
-	case "[":
-		parseArray(scanner)
-	case `"`:
-		parseString(scanner)
-	case "n":
-		parseNil(scanner)
-	case "t":
-		parseTrue(scanner)
-	case "f":
-		parseFalse(scanner)
+func parseValue(reader *bufio.Reader) Value {
+	escapeWhiteSpace(reader)
+	item, err := reader.ReadByte()
+	if nil != err {
+		panic("value error in the json string")
+	}
+	switch item {
+	case '{':
+		parseObject(reader)
+	case '[':
+		parseArray(reader)
+	case '"':
+		parseString(reader)
+	case 'n':
+		parseNil(reader)
+	case 't':
+		parseTrue(reader)
+	case 'f':
+		parseFalse(reader)
 	default:
-		parseNumber(scanner)
+		parseNumber(reader)
 	}
 }
 
-func parse(scanner *bufio.Scanner) *Value {
-	scanner.Split(bufio.ScanBytes)
-	escapeWhiteSpace(scanner)
+func parse(reader *bufio.Reader) *Value {
+	escapeWhiteSpace(reader)
 	//the format of json is invalid
-	if "{" != scanner.Text() {
+	item, err := reader.ReadByte()
+	if '{' != item {
 		panic("json string not started with {")
 	}
-	return parseObject(scanner)
+	return parseObject(reader)
 }
 
-func parseObject(scanner *bufio.Scanner) *Value {
+func parseObject(reader *bufio.Reader) *Value {
+	escapeWhiteSpace(reader)
 	res := &Value{vObjectType, unsafe.Pointer(new(JsonObject))}
+	item, err := reader.ReadByte()
+	if nil == err {
+		panic("object invalid in the json string")
+	}
 	//empty objext
-	if "}" == scanner.Text() {
+	if '}' == item {
 		return res
 	}
 	for {
 		//will take the next item
-		escapeWhiteSpace(scanner)
-		if `"` != scanner.Text() {
+		escapeWhiteSpace(reader)
+		item, err = reader.ReadByte()
+		if nil != err || '"' != item {
 			panic("json key is not a string.")
 		}
-		key := parseString(scanner)
+		key := parseString(reader)
 		pStrKey := (*string)(key.ptrValue)
-		escapeWhiteSpace(scanner)
-		if ":" != scanner.Text() {
+		escapeWhiteSpace(reader)
+		item, err = reader.ReadByte()
+		if nil != err || ':' != item {
 			panic("invalid json format")
 		}
-		escapeWhiteSpace(scanner)
-		val := parseValue(scanner)
+		val := parseValue(reader)
 		((*JsonObject)(res.ptrValue)).lstObjects = append(((*JsonObject)(res.ptrValue)).lstObjects, Member{pStrKey, val})
 		//another member, do not take next item first
-		escapeWhiteSpace(scanner)
-		if "," == scanner.Text() {
+		escapeWhiteSpace(reader)
+		item, err = reader.ReadByte()
+		if nil == err {
+			panic("invalid json format")
+		}
+		if ',' == item {
 			continue
 		}
-		if "}" == scanner.Text() {
+		if '}' == item {
 			break
 		}
 		panic("invalid json format")
@@ -87,23 +107,31 @@ func parseObject(scanner *bufio.Scanner) *Value {
 	return res
 }
 
-func parseArray(scanner *bufio.Scanner) *Value {
+func parseArray(reader *bufio.Reader) *Value {
+	escapeWhiteSpace(reader)
+	item, err := reader.ReadByte()
+	if nil == err {
+		panic("array invalid in the json string")
+	}
 	res := &Value{vArrayType, unsafe.Pointer(new(JsonArray))}
 	//empty array
-	if "]" == scanner.Text() {
+	if ']' == item {
 		return res
 	}
 	for {
 		//will take the next item
-		escapeWhiteSpace(scanner)
-		val := parseValue(scanner)
+		val := parseValue(reader)
 		((*JsonArray)(res.ptrValue)).lstValues = append(((*JsonArray)(res.ptrValue)).lstValues, val)
-		escapeWhiteSpace(scanner)
+		escapeWhiteSpace(reader)
+		item, err = reader.ReadByte()
+		if nil == err {
+			panic("invalid json format")
+		}
 		//another member, do not take next item first
-		if "," == scanner.Text() {
+		if ',' == item {
 			continue
 		}
-		if "]" == scanner.Text() {
+		if ']' == item {
 			break
 		}
 		panic("invalid json format")
@@ -111,43 +139,43 @@ func parseArray(scanner *bufio.Scanner) *Value {
 	return res
 }
 
-func parseString(scanner *bufio.Scanner) *Value {
+func parseString(reader *bufio.Reader) *Value {
 
 }
 
-func parseNil(scanner *bufio.Scanner) *Value {
+func parseNil(reader *bufio.Reader) *Value {
+	items, err := reader.Peek(3)
+	if nil != err || !('u' == items[0] && 'l' == items[1] && 'l' == items[2]) {
+		panic("invalid value")
+	}
 	res := &Value{}
 	res.vType = vNilType
-	if !(scanner.Scan() && "i" == scanner.Text() &&
-		scanner.Scan() && "l" == scanner.Text()) {
-		panic("invalid value")
-	}
+	reader.Discard(3)
 	return res
 }
 
-func parseTrue(scanner *bufio.Scanner) *Value {
+func parseTrue(reader *bufio.Reader) *Value {
+	items, err := reader.Peek(3)
+	if nil != err || !('r' == items[0] && 'u' == items[1] && 'e' == items[2]) {
+		panic("invalid value")
+	}
 	res := &Value{}
 	res.vType = vTrueType
-	if !(scanner.Scan() && "r" == scanner.Text() &&
-		scanner.Scan() && "u" == scanner.Text() &&
-		scanner.Scan() && "e" == scanner.Text()) {
-		panic("invalid value")
-	}
+	reader.Discard(3)
 	return res
 }
 
-func parseFalse(scanner *bufio.Scanner) *Value {
+func parseFalse(reader *bufio.Reader) *Value {
+	items, err := reader.Peek(4)
+	if nil != err || !('a' == items[0] && 'l' == items[1] && 's' == items[2] && 'e' == items[3]) {
+		panic("invalid value")
+	}
 	res := &Value{}
-	res.vType = vFalseType
-	if !(scanner.Scan() && "a" == scanner.Text() &&
-		scanner.Scan() && "l" == scanner.Text() &&
-		scanner.Scan() && "s" == scanner.Text() &&
-		scanner.Scan() && "e" == scanner.Text()) {
-		panic("invalid value")
-	}
+	res.vType = vTrueType
+	reader.Discard(4)
 	return res
 }
 
-func parseNumber(scanner *bufio.Scanner) *Value {
+func parseNumber(reader *bufio.Reader) *Value {
 
 }
