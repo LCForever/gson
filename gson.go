@@ -83,6 +83,9 @@ func parseObject(reader *bufio.Reader) *Value {
 		}
 		key := parseString(reader)
 		pStrKey := (*string)(key.ptrValue)
+		if 0 == len(*pStrKey) {
+			panic("json key cannot be empty.")
+		}
 		escapeWhiteSpace(reader)
 		item, err = reader.ReadByte()
 		if nil != err || ':' != item {
@@ -140,7 +143,38 @@ func parseArray(reader *bufio.Reader) *Value {
 }
 
 func parseString(reader *bufio.Reader) *Value {
-
+	res := &Value{}
+	res.vType = vStringType
+	byteRes := make([]byte, 20)
+	byteSpecial := map[byte]byte{'b': 8, 'f': 12, 'n': 10, 'r': 13, 't': 9, '\\': 92, '"': 4}
+	var item, nextItem byte
+	var strValue string
+	for {
+		item, err := reader.ReadByte()
+		if nil != err {
+			panic("string invalid in the json string")
+		}
+		if '"' == item {
+			strValue = string(byteRes)
+			res.ptrValue = unsafe.Pointer(&strValue)
+			break
+		}
+		if '\\' == item {
+			nextItem, err = reader.ReadByte()
+			if nil != err {
+				panic("string invalid in the json string")
+			}
+			value, ok := byteSpecial[nextItem]
+			if ok {
+				byteRes = append(byteRes, value)
+				continue
+			} else {
+				panic("string invalid in the json string")
+			}
+		}
+		byteRes = append(byteRes, item)
+	}
+	return res
 }
 
 func parseNil(reader *bufio.Reader) *Value {

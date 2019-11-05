@@ -29,7 +29,7 @@ type Member struct {
 	value   Value
 }
 
-//a JsonObject is an array of members
+//JsonObject is an array of members
 type JsonObject struct {
 	lstObjects []Member
 }
