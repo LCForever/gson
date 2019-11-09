@@ -26,14 +26,14 @@ type Value struct {
 //a member is a k-v pair
 type Member struct {
 	pStrKey *string
-	value   Value
+	value   *Value
 }
 
 //JsonObject is an array of members
 type JsonObject struct {
-	lstObjects []Member
+	lstObjects []*Member
 }
 
 type JsonArray struct {
-	lstValues []Value
+	lstValues []*Value
 }
