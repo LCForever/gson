@@ -7,12 +7,10 @@ import (
 	"unsafe"
 )
 
-/*
 //dom style
-type gson struct {
-	m_obj JsonObject
+type Gson struct {
+	m_val *Value
 }
-*/
 
 func isWhiteSpace(item byte) bool {
 	return ' ' == item || '\t' == item || '\n' == item
@@ -37,7 +35,6 @@ func escapeWhiteSpace(reader *bufio.Reader) {
 }
 
 func parseValue(reader *bufio.Reader) *Value {
-	fmt.Println("parseValue")
 	escapeWhiteSpace(reader)
 	item, err := reader.ReadByte()
 	if nil != err {
@@ -63,8 +60,27 @@ func parseValue(reader *bufio.Reader) *Value {
 }
 
 //export Parse
-func Parse(reader *bufio.Reader) *Value {
-	fmt.Println("Parse")
+func (gson *Gson) Parse(reader *bufio.Reader) (bRes bool) {
+	defer func() {
+		if err := recover(); nil != err {
+			fmt.Println(err)
+			bRes = false
+		}
+	}()
+	bRes = true
+	gson.m_val = parse(reader)
+	return
+}
+
+//export Dump
+func (gson *Gson) Dump() (string, bool) {
+	if nil == gson.m_val {
+		return "", false
+	}
+	return gson.m_val.dump(), true
+}
+
+func parse(reader *bufio.Reader) *Value {
 	escapeWhiteSpace(reader)
 	//the format of json is invalid
 	item, err := reader.ReadByte()
@@ -84,7 +100,6 @@ func Parse(reader *bufio.Reader) *Value {
 }
 
 func parseObject(reader *bufio.Reader) *Value {
-	fmt.Println("parseObject")
 	escapeWhiteSpace(reader)
 	res := &Value{vObjectType, unsafe.Pointer(new(JsonObject))}
 	item, err := reader.ReadByte()
@@ -132,7 +147,6 @@ func parseObject(reader *bufio.Reader) *Value {
 }
 
 func parseArray(reader *bufio.Reader) *Value {
-	fmt.Println("parseArray")
 	escapeWhiteSpace(reader)
 	item, err := reader.ReadByte()
 	if nil != err {
@@ -166,11 +180,10 @@ func parseArray(reader *bufio.Reader) *Value {
 }
 
 func parseString(reader *bufio.Reader) *Value {
-	fmt.Println("parseString")
 	res := &Value{}
 	res.vType = vStringType
-	byteRes := make([]byte, 20)
-	byteSpecial := map[byte]byte{'b': 8, 'f': 12, 'n': 10, 'r': 13, 't': 9, '\\': 92, '"': 4}
+	byteRes := make([]byte, 0)
+	byteSpecial := map[byte]byte{'b': 8, 'f': 12, 'n': 10, 'r': 13, 't': 9, '\\': 92, '"': 34}
 	var item, nextItem byte
 	var strValue string
 	var err error
@@ -203,7 +216,6 @@ func parseString(reader *bufio.Reader) *Value {
 }
 
 func parseNil(reader *bufio.Reader) *Value {
-	fmt.Println("parseNil")
 	items, err := reader.Peek(3)
 	if nil != err || !('u' == items[0] && 'l' == items[1] && 'l' == items[2]) {
 		panic("invalid value")
@@ -215,7 +227,6 @@ func parseNil(reader *bufio.Reader) *Value {
 }
 
 func parseTrue(reader *bufio.Reader) *Value {
-	fmt.Println("parseTrue")
 	items, err := reader.Peek(3)
 	if nil != err || !('r' == items[0] && 'u' == items[1] && 'e' == items[2]) {
 		panic("invalid value")
@@ -227,19 +238,17 @@ func parseTrue(reader *bufio.Reader) *Value {
 }
 
 func parseFalse(reader *bufio.Reader) *Value {
-	fmt.Println("parseFalse")
 	items, err := reader.Peek(4)
 	if nil != err || !('a' == items[0] && 'l' == items[1] && 's' == items[2] && 'e' == items[3]) {
 		panic("invalid value")
 	}
 	res := &Value{}
-	res.vType = vTrueType
+	res.vType = vFalseType
 	reader.Discard(4)
 	return res
 }
 
 func parseNumber(reader *bufio.Reader) *Value {
-	fmt.Println("parseNumber")
 	var item byte
 	var byteNum []byte
 	var err error
