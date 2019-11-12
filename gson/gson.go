@@ -102,6 +102,7 @@ func parse(reader *bufio.Reader) *Value {
 func parseObject(reader *bufio.Reader) *Value {
 	escapeWhiteSpace(reader)
 	res := &Value{vObjectType, unsafe.Pointer(new(JsonObject))}
+	((*JsonObject)(res.ptrValue)).mapObjects = map[string]*Value{}
 	item, err := reader.ReadByte()
 	if nil != err {
 		panic("json string not finished")
@@ -124,8 +125,11 @@ func parseObject(reader *bufio.Reader) *Value {
 		if nil != err || ':' != item {
 			panic("invalid json format, no value part")
 		}
-		val := parseValue(reader)
-		((*JsonObject)(res.ptrValue)).lstObjects = append(((*JsonObject)(res.ptrValue)).lstObjects, &Member{pStrKey, val})
+		_, ok := ((*JsonObject)(res.ptrValue)).mapObjects[*pStrKey]
+		if ok {
+			panic("duplicate key in json object")
+		}
+		((*JsonObject)(res.ptrValue)).mapObjects[*pStrKey] = parseValue(reader)
 		//another member, do not take next item first
 		escapeWhiteSpace(reader)
 		item, err = reader.ReadByte()

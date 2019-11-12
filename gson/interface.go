@@ -61,28 +61,20 @@ func dumpString(strValue string) string {
 	return strBuf.String()
 }
 
-//a member is a k-v pair
-type Member struct {
-	pStrKey *string
-	value   *Value
-}
-
-func (member *Member) dump() string {
-	return `"` + dumpString(*(member.pStrKey)) + `":` + member.value.dump()
-}
-
 //JsonObject is an array of members
 type JsonObject struct {
-	lstObjects []*Member
+	mapObjects map[string]*Value
 }
 
 func (jsonObject *JsonObject) dump() string {
 	strRes := "{"
-	nLen := len(jsonObject.lstObjects)
-	for nIndex, item := range jsonObject.lstObjects {
-		strRes += item.dump()
+	nLen := len(jsonObject.mapObjects)
+	nIndex := 0
+	for k, v := range jsonObject.mapObjects {
+		strRes += `"` + dumpString(k) + `":` + v.dump()
 		if nLen-1 > nIndex {
 			strRes += ","
+			nIndex++
 		}
 	}
 	strRes += "}"
