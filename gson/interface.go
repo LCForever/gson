@@ -2,7 +2,6 @@ package gson
 
 import (
 	"bytes"
-	"strconv"
 	"unsafe"
 )
 
@@ -14,11 +13,21 @@ const (
 	vTrueType   = 0x02
 	vFalseType  = 0x04
 	vNilType    = 0x08
-	vUIntType   = 0x10
-	vIntType    = 0x20
-	vDoubleType = 0x40
-	vStringType = 0x80
+	vNumType    = 0x10
+	vStringType = 0x20
 )
+
+const (
+	vUIntType   = 0x00
+	vIntType    = 0x01
+	vDoubleType = 0x02
+)
+
+type Number struct {
+	vType    uint8 //the number type of the number, vUIntType/vIntType/vDoubleType
+	ptrValue unsafe.Pointer
+	pStrRaw  *string //the raw string of the number
+}
 
 type Value struct {
 	vType    uint8 //the type of the value
@@ -37,12 +46,8 @@ func (value *Value) dump() string {
 		return "false"
 	case vNilType:
 		return "null"
-	case vUIntType:
-		return strconv.FormatUint(*((*uint64)(value.ptrValue)), 10)
-	case vIntType:
-		return strconv.FormatInt(*((*int64)(value.ptrValue)), 10)
-	case vDoubleType:
-		return strconv.FormatFloat(*((*float64)(value.ptrValue)), 'e', -1, 64)
+	case vNumType:
+		return ((*Number)(value.ptrValue)).dump()
 	}
 	return `"` + dumpString(*(*string)(value.ptrValue)) + `"`
 }
@@ -64,6 +69,10 @@ func dumpString(strValue string) string {
 //JsonObject is an array of members
 type JsonObject struct {
 	mapObjects map[string]*Value
+}
+
+func (num *Number) dump() string {
+	return *num.pStrRaw
 }
 
 func (jsonObject *JsonObject) dump() string {

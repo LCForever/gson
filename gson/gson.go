@@ -4,7 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"strconv"
+	"strings"
 	"unsafe"
+)
+
+const (
+	PATH_SPLIT_CHAR = '.'
 )
 
 //dom style
@@ -78,6 +83,96 @@ func (gson *Gson) Dump() (string, bool) {
 		return "", false
 	}
 	return gson.m_val.dump(), true
+}
+
+//to be different with number, path should have quoto
+//for example, `"a"."b"."c".1`
+func (gson *Gson) Get(strPath string) (res *Value) {
+	defer func() {
+		if err := recover(); nil != err {
+			fmt.Println("invalid path")
+			res = nil
+		}
+	}()
+	res = gson.m_val
+	reader := bufio.NewReader(strings.NewReader(strPath))
+	var item byte
+	var err error
+	var bHas bool
+	item, err = reader.ReadByte()
+	//empty path
+	if nil != err {
+		return
+	}
+	if PATH_SPLIT_CHAR == item {
+		panic("Invalid path")
+	}
+
+	for {
+		if '"' == item || ('0' <= item && '9' >= item) {
+			if '"' == item {
+				if vObjectType != res.vType {
+					panic("invalid path")
+				}
+				pResKey := parseString(reader)
+				res, bHas = ((*JsonObject)(res.ptrValue)).mapObjects[*(*string)(pResKey.ptrValue)]
+				if !bHas {
+					panic("invalid path")
+				}
+			} else if '0' <= item && '9' >= item {
+				if vArrayType != res.vType {
+					panic("invalid path")
+				}
+				reader.UnreadByte()
+				pathIndex := getPathIndex(reader)
+				if pathIndex >= len(((*JsonArray)(res.ptrValue)).lstValues) {
+					panic("invalid path")
+				}
+				res = ((*JsonArray)(res.ptrValue)).lstValues[pathIndex]
+			}
+			item, err = reader.ReadByte()
+			//finish byte
+			if nil != err {
+				break
+			}
+		}
+
+		if PATH_SPLIT_CHAR == item {
+			//cannot have multiple splitor
+			item, err = reader.ReadByte()
+			//empty path
+			if nil != err || PATH_SPLIT_CHAR == item {
+				panic("Invalid path")
+			}
+		} else {
+			panic("Invalid path")
+		}
+	}
+	return
+}
+
+func getPathIndex(reader *bufio.Reader) int {
+	var resIndex int = 0
+	var bHasValue bool = false
+	for {
+		item, err := reader.ReadByte()
+		if nil != err {
+			if true == bHasValue {
+				return resIndex
+			}
+			panic("Invalid path index")
+		}
+		if '0' <= item && '9' >= item {
+			resIndex = 10*resIndex + (int)(item-'0')
+			bHasValue = true
+		} else if PATH_SPLIT_CHAR == item {
+			reader.UnreadByte()
+			break
+		} else {
+			panic("Invalid path index")
+		}
+	}
+	return resIndex
 }
 
 func parse(reader *bufio.Reader) *Value {
@@ -270,14 +365,14 @@ func parseNumber(reader *bufio.Reader) *Value {
 	var strNum string = string(byteNum)
 	//parse with int firstly
 	if resNum, err := strconv.ParseInt(strNum, 10, 64); nil == err {
-		return &Value{vIntType, unsafe.Pointer(&resNum)}
+		return &Value{vNumType, unsafe.Pointer(&Number{vIntType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	//maybe number exceed int range
 	if resNum, err := strconv.ParseUint(strNum, 10, 64); nil == err {
-		return &Value{vUIntType, unsafe.Pointer(&resNum)}
+		return &Value{vNumType, unsafe.Pointer(&Number{vUIntType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	if resNum, err := strconv.ParseFloat(strNum, 64); nil == err {
-		return &Value{vDoubleType, unsafe.Pointer(&resNum)}
+		return &Value{vNumType, unsafe.Pointer(&Number{vDoubleType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	panic("invalid json number")
 }

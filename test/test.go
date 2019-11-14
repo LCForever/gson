@@ -13,4 +13,5 @@ func main() {
 	MyGson := new(gson.Gson)
 	MyGson.Parse(reader)
 	fmt.Println(MyGson.Dump())
+	fmt.Println(MyGson.Get(`"json".5."abc\n\""`))
 }
