@@ -25,7 +25,7 @@ const (
 	vDoubleType = 0x02
 )
 
-type Number struct {
+type tNumber struct {
 	vType    uint8 //the number type of the number, vUIntType/vIntType/vDoubleType
 	ptrValue unsafe.Pointer
 	pStrRaw  *string //the raw string of the number
@@ -34,6 +34,20 @@ type Number struct {
 type Value struct {
 	vType    uint8 //the type of the value
 	ptrValue unsafe.Pointer
+}
+
+func (value *Value) GetArrayValue() ([]*Value, error) {
+	if value.IsArray() {
+		return (*tJsonArray)(value.ptrValue).lstValues, nil
+	}
+	return nil, errors.New("value not array type")
+}
+
+func (value *Value) GetObjectValue() (map[string]*Value, error) {
+	if value.IsObject() {
+		return (*tJsonObject)(value.ptrValue).mapObjects, nil
+	}
+	return nil, errors.New("value not object type")
 }
 
 func (value *Value) GetBoolValue() (bool, error) {
@@ -48,7 +62,7 @@ func (value *Value) GetBoolValue() (bool, error) {
 
 func (value *Value) GetIntValue() (int64, error) {
 	if value.IsNumber() {
-		numValue := (*Number)(value.ptrValue)
+		numValue := (*tNumber)(value.ptrValue)
 		if vIntType == numValue.vType {
 			return *(*int64)(numValue.ptrValue), nil
 		}
@@ -64,7 +78,7 @@ func (value *Value) GetIntValue() (int64, error) {
 
 func (value *Value) GetUIntValue() (uint64, error) {
 	if value.IsNumber() {
-		numValue := (*Number)(value.ptrValue)
+		numValue := (*tNumber)(value.ptrValue)
 		if vUIntType == numValue.vType {
 			return *(*uint64)(numValue.ptrValue), nil
 		}
@@ -80,7 +94,7 @@ func (value *Value) GetUIntValue() (uint64, error) {
 
 func (value *Value) GetDoubleValue() (float64, error) {
 	if value.IsNumber() {
-		numValue := (*Number)(value.ptrValue)
+		numValue := (*tNumber)(value.ptrValue)
 		if vUIntType == numValue.vType {
 			return (float64)(*(*uint64)(numValue.ptrValue)), nil
 		}
@@ -128,9 +142,9 @@ func (value *Value) IsBool() bool {
 func (value *Value) Dump() string {
 	switch value.vType {
 	case vObjectType:
-		return ((*JsonObject)(value.ptrValue)).Dump()
+		return ((*tJsonObject)(value.ptrValue)).dump()
 	case vArrayType:
-		return ((*JsonArray)(value.ptrValue)).Dump()
+		return ((*tJsonArray)(value.ptrValue)).dump()
 	case vTrueType:
 		return "true"
 	case vFalseType:
@@ -138,7 +152,7 @@ func (value *Value) Dump() string {
 	case vNilType:
 		return "null"
 	case vNumType:
-		return ((*Number)(value.ptrValue)).Dump()
+		return ((*tNumber)(value.ptrValue)).dump()
 	}
 	return `"` + dumpString(*(*string)(value.ptrValue)) + `"`
 }
@@ -158,15 +172,15 @@ func dumpString(strValue string) string {
 }
 
 //JsonObject is an array of members
-type JsonObject struct {
+type tJsonObject struct {
 	mapObjects map[string]*Value
 }
 
-func (num *Number) Dump() string {
+func (num *tNumber) dump() string {
 	return *num.pStrRaw
 }
 
-func (jsonObject *JsonObject) Dump() string {
+func (jsonObject *tJsonObject) dump() string {
 	strRes := "{"
 	nLen := len(jsonObject.mapObjects)
 	nIndex := 0
@@ -181,11 +195,11 @@ func (jsonObject *JsonObject) Dump() string {
 	return strRes
 }
 
-type JsonArray struct {
+type tJsonArray struct {
 	lstValues []*Value
 }
 
-func (jsonArray *JsonArray) Dump() string {
+func (jsonArray *tJsonArray) dump() string {
 	strRes := "["
 	nLen := len(jsonArray.lstValues)
 	for nIndex, item := range jsonArray.lstValues {

@@ -1,5 +1,6 @@
 package gson
 
+//what we want to export is Value and Gson, No other structs
 import (
 	"bufio"
 	"errors"
@@ -116,7 +117,7 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 					panic("invalid path")
 				}
 				pResKey := parseString(reader)
-				res, bHas = ((*JsonObject)(res.ptrValue)).mapObjects[*(*string)(pResKey.ptrValue)]
+				res, bHas = ((*tJsonObject)(res.ptrValue)).mapObjects[*(*string)(pResKey.ptrValue)]
 				if !bHas {
 					panic("invalid path")
 				}
@@ -126,10 +127,10 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 				}
 				reader.UnreadByte()
 				pathIndex := getPathIndex(reader)
-				if pathIndex >= len(((*JsonArray)(res.ptrValue)).lstValues) {
+				if pathIndex >= len(((*tJsonArray)(res.ptrValue)).lstValues) {
 					panic("invalid path")
 				}
-				res = ((*JsonArray)(res.ptrValue)).lstValues[pathIndex]
+				res = ((*tJsonArray)(res.ptrValue)).lstValues[pathIndex]
 			}
 			item, err = reader.ReadByte()
 			//finish byte
@@ -209,7 +210,7 @@ func (gson *Gson) AddObject(strPath, strKey, strOrigVal string) (resErr error) {
 	if vObjectType != value.vType {
 		return errors.New("The item with specified path should be an object.")
 	}
-	_, ok := ((*JsonObject)(value.ptrValue)).mapObjects[strKey]
+	_, ok := ((*tJsonObject)(value.ptrValue)).mapObjects[strKey]
 	if ok {
 		return errors.New("The key already exist.")
 	}
@@ -217,7 +218,7 @@ func (gson *Gson) AddObject(strPath, strKey, strOrigVal string) (resErr error) {
 	if nil == newVal {
 		return errors.New("Invalid value format")
 	}
-	((*JsonObject)(value.ptrValue)).mapObjects[strKey] = newVal
+	((*tJsonObject)(value.ptrValue)).mapObjects[strKey] = newVal
 	return nil
 }
 
@@ -240,7 +241,7 @@ func (gson *Gson) AddMember(strPath, strOrigVal string) (resErr error) {
 	if nil == newVal {
 		return errors.New("Invalid value format")
 	}
-	((*JsonArray)(value.ptrValue)).lstValues = append(((*JsonArray)(value.ptrValue)).lstValues, newVal)
+	((*tJsonArray)(value.ptrValue)).lstValues = append(((*tJsonArray)(value.ptrValue)).lstValues, newVal)
 	return nil
 }
 
@@ -289,8 +290,8 @@ func parse(reader *bufio.Reader) *Value {
 
 func parseObject(reader *bufio.Reader) *Value {
 	escapeWhiteSpace(reader)
-	res := &Value{vObjectType, unsafe.Pointer(new(JsonObject))}
-	((*JsonObject)(res.ptrValue)).mapObjects = map[string]*Value{}
+	res := &Value{vObjectType, unsafe.Pointer(new(tJsonObject))}
+	((*tJsonObject)(res.ptrValue)).mapObjects = map[string]*Value{}
 	item, err := reader.ReadByte()
 	if nil != err {
 		panic("json string not finished")
@@ -313,11 +314,11 @@ func parseObject(reader *bufio.Reader) *Value {
 		if nil != err || ':' != item {
 			panic("invalid json format, no value part")
 		}
-		_, ok := ((*JsonObject)(res.ptrValue)).mapObjects[*pStrKey]
+		_, ok := ((*tJsonObject)(res.ptrValue)).mapObjects[*pStrKey]
 		if ok {
 			panic("duplicate key in json object")
 		}
-		((*JsonObject)(res.ptrValue)).mapObjects[*pStrKey] = parseValue(reader)
+		((*tJsonObject)(res.ptrValue)).mapObjects[*pStrKey] = parseValue(reader)
 		//another member, do not take next item first
 		escapeWhiteSpace(reader)
 		item, err = reader.ReadByte()
@@ -344,7 +345,7 @@ func parseArray(reader *bufio.Reader) *Value {
 	if nil != err {
 		panic("array invalid in the json string, json string not finished")
 	}
-	res := &Value{vArrayType, unsafe.Pointer(new(JsonArray))}
+	res := &Value{vArrayType, unsafe.Pointer(new(tJsonArray))}
 	//empty array
 	if ']' == item {
 		return res
@@ -353,7 +354,7 @@ func parseArray(reader *bufio.Reader) *Value {
 	for {
 		//will take the next item
 		val := parseValue(reader)
-		((*JsonArray)(res.ptrValue)).lstValues = append(((*JsonArray)(res.ptrValue)).lstValues, val)
+		((*tJsonArray)(res.ptrValue)).lstValues = append(((*tJsonArray)(res.ptrValue)).lstValues, val)
 		escapeWhiteSpace(reader)
 		item, err = reader.ReadByte()
 		if nil != err {
@@ -459,14 +460,14 @@ func parseNumber(reader *bufio.Reader) *Value {
 	var strNum string = string(byteNum)
 	//parse with int firstly
 	if resNum, err := strconv.ParseInt(strNum, 10, 64); nil == err {
-		return &Value{vNumType, unsafe.Pointer(&Number{vIntType, unsafe.Pointer(&resNum), &strNum})}
+		return &Value{vNumType, unsafe.Pointer(&tNumber{vIntType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	//maybe number exceed int range
 	if resNum, err := strconv.ParseUint(strNum, 10, 64); nil == err {
-		return &Value{vNumType, unsafe.Pointer(&Number{vUIntType, unsafe.Pointer(&resNum), &strNum})}
+		return &Value{vNumType, unsafe.Pointer(&tNumber{vUIntType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	if resNum, err := strconv.ParseFloat(strNum, 64); nil == err {
-		return &Value{vNumType, unsafe.Pointer(&Number{vDoubleType, unsafe.Pointer(&resNum), &strNum})}
+		return &Value{vNumType, unsafe.Pointer(&tNumber{vDoubleType, unsafe.Pointer(&resNum), &strNum})}
 	}
 	panic("invalid json number")
 }
