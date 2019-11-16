@@ -2,6 +2,7 @@ package gson
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -149,6 +150,98 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 		}
 	}
 	return
+}
+
+//get the original string of the specified path
+func (gson *Gson) Original(strPath string) (string, error) {
+	value := gson.Get(strPath)
+	if nil != value {
+		return value.dump(), nil
+	}
+	return "", errors.New("invalid path")
+}
+
+//the origval should be a correct value
+func getValueByString(strOrigVal string) *Value {
+	reader := bufio.NewReader(strings.NewReader(strOrigVal))
+	newVal := parseValue(reader)
+	escapeWhiteSpace(reader)
+	//should be finished
+	_, err := reader.ReadByte()
+	if nil != newVal && nil != err {
+		return newVal
+	}
+	return nil
+}
+
+//Set item, need to have the key with the path
+func (gson *Gson) Set(strPath, strOrigVal string) (resErr error) {
+	defer func() {
+		if nil != recover() {
+			resErr = errors.New("Invalid value format")
+		}
+	}()
+	value := gson.Get(strPath)
+	if nil != value {
+		newVal := getValueByString(strOrigVal)
+		if nil != newVal {
+			*value = *newVal
+			return nil
+		}
+	} else {
+		return errors.New("Invalid path")
+	}
+	return errors.New("Invalid value format")
+}
+
+//AddObject should have path, the item related with the path should be an object
+//There should also be key and value in the function
+func (gson *Gson) AddObject(strPath, strKey, strOrigVal string) (resErr error) {
+	defer func() {
+		if nil != recover() {
+			resErr = errors.New("Invalid value format")
+		}
+	}()
+	value := gson.Get(strPath)
+	if nil == value {
+		return errors.New("Invalid path")
+	}
+	if vObjectType != value.vType {
+		return errors.New("The item with specified path should be an object.")
+	}
+	_, ok := ((*JsonObject)(value.ptrValue)).mapObjects[strKey]
+	if ok {
+		return errors.New("The key already exist.")
+	}
+	newVal := getValueByString(strOrigVal)
+	if nil == newVal {
+		return errors.New("Invalid value format")
+	}
+	((*JsonObject)(value.ptrValue)).mapObjects[strKey] = newVal
+	return nil
+}
+
+//AddMember should have path, the item related with the path should be an array
+//There should also be a value in the function
+func (gson *Gson) AddMember(strPath, strOrigVal string) (resErr error) {
+	defer func() {
+		if nil != recover() {
+			resErr = errors.New("Invalid value format")
+		}
+	}()
+	value := gson.Get(strPath)
+	if nil == value {
+		return errors.New("Invalid path")
+	}
+	if vArrayType != value.vType {
+		return errors.New("The item with specified path should be an array.")
+	}
+	newVal := getValueByString(strOrigVal)
+	if nil == newVal {
+		return errors.New("Invalid value format")
+	}
+	((*JsonArray)(value.ptrValue)).lstValues = append(((*JsonArray)(value.ptrValue)).lstValues, newVal)
+	return nil
 }
 
 func getPathIndex(reader *bufio.Reader) int {
@@ -353,8 +446,9 @@ func parseNumber(reader *bufio.Reader) *Value {
 	var err error
 	for {
 		item, err = reader.ReadByte()
+		//read end, just parse the number, no need to deal here, will be dealt in parseArray or parseObject
 		if nil != err {
-			panic("invalid json format")
+			break
 		}
 		if isSplitByte(item) {
 			reader.UnreadByte()

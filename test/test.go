@@ -13,5 +13,10 @@ func main() {
 	MyGson := new(gson.Gson)
 	MyGson.Parse(reader)
 	fmt.Println(MyGson.Dump())
-	fmt.Println(MyGson.Get(`"json".5."abc\n\""`))
+	fmt.Println(MyGson.AddMember(`"json"`, "123456"))
+	fmt.Println(MyGson.Dump())
+	fmt.Println(MyGson.Set(`"json"`, "123456"))
+	fmt.Println(MyGson.Dump())
+	fmt.Println(MyGson.AddObject(`"json"`, "newitem", `"123456"`))
+	fmt.Println(MyGson.Dump())
 }
