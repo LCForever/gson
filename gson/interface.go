@@ -2,6 +2,8 @@ package gson
 
 import (
 	"bytes"
+	"errors"
+	"math"
 	"unsafe"
 )
 
@@ -34,12 +36,101 @@ type Value struct {
 	ptrValue unsafe.Pointer
 }
 
-func (value *Value) dump() string {
+func (value *Value) GetBoolValue() (bool, error) {
+	if vTrueType == value.vType {
+		return true, nil
+	}
+	if vFalseType == value.vType {
+		return false, nil
+	}
+	return false, errors.New("value not bool type")
+}
+
+func (value *Value) GetIntValue() (int64, error) {
+	if value.IsNumber() {
+		numValue := (*Number)(value.ptrValue)
+		if vIntType == numValue.vType {
+			return *(*int64)(numValue.ptrValue), nil
+		}
+		if vUIntType == numValue.vType {
+			unRes := *(*uint64)(numValue.ptrValue)
+			if math.MaxInt64 >= unRes {
+				return (int64)(unRes), nil
+			}
+		}
+	}
+	return 0, errors.New("value not int64 type")
+}
+
+func (value *Value) GetUIntValue() (uint64, error) {
+	if value.IsNumber() {
+		numValue := (*Number)(value.ptrValue)
+		if vUIntType == numValue.vType {
+			return *(*uint64)(numValue.ptrValue), nil
+		}
+		if vIntType == numValue.vType {
+			nRes := *(*int64)(numValue.ptrValue)
+			if 0 <= nRes {
+				return (uint64)(nRes), nil
+			}
+		}
+	}
+	return 0, errors.New("value not uint64 type")
+}
+
+func (value *Value) GetDoubleValue() (float64, error) {
+	if value.IsNumber() {
+		numValue := (*Number)(value.ptrValue)
+		if vUIntType == numValue.vType {
+			return (float64)(*(*uint64)(numValue.ptrValue)), nil
+		}
+		if vIntType == numValue.vType {
+			return (float64)(*(*int64)(numValue.ptrValue)), nil
+		}
+		if vDoubleType == numValue.vType {
+			return (*(*float64)(numValue.ptrValue)), nil
+		}
+	}
+	return 0, errors.New("value not float type")
+}
+
+func (value *Value) GetStringValue() (string, error) {
+	if value.IsString() {
+		return (*(*string)(value.ptrValue)), nil
+	}
+	return "", errors.New("value not string type")
+}
+
+func (value *Value) IsObject() bool {
+	return vObjectType == value.vType
+}
+
+func (value *Value) IsArray() bool {
+	return vArrayType == value.vType
+}
+
+func (value *Value) IsNil() bool {
+	return vNilType == value.vType
+}
+
+func (value *Value) IsNumber() bool {
+	return vNumType == value.vType
+}
+
+func (value *Value) IsString() bool {
+	return vStringType == value.vType
+}
+
+func (value *Value) IsBool() bool {
+	return vTrueType == value.vType || vFalseType == value.vType
+}
+
+func (value *Value) Dump() string {
 	switch value.vType {
 	case vObjectType:
-		return ((*JsonObject)(value.ptrValue)).dump()
+		return ((*JsonObject)(value.ptrValue)).Dump()
 	case vArrayType:
-		return ((*JsonArray)(value.ptrValue)).dump()
+		return ((*JsonArray)(value.ptrValue)).Dump()
 	case vTrueType:
 		return "true"
 	case vFalseType:
@@ -47,7 +138,7 @@ func (value *Value) dump() string {
 	case vNilType:
 		return "null"
 	case vNumType:
-		return ((*Number)(value.ptrValue)).dump()
+		return ((*Number)(value.ptrValue)).Dump()
 	}
 	return `"` + dumpString(*(*string)(value.ptrValue)) + `"`
 }
@@ -71,16 +162,16 @@ type JsonObject struct {
 	mapObjects map[string]*Value
 }
 
-func (num *Number) dump() string {
+func (num *Number) Dump() string {
 	return *num.pStrRaw
 }
 
-func (jsonObject *JsonObject) dump() string {
+func (jsonObject *JsonObject) Dump() string {
 	strRes := "{"
 	nLen := len(jsonObject.mapObjects)
 	nIndex := 0
 	for k, v := range jsonObject.mapObjects {
-		strRes += `"` + dumpString(k) + `":` + v.dump()
+		strRes += `"` + dumpString(k) + `":` + v.Dump()
 		if nLen-1 > nIndex {
 			strRes += ","
 			nIndex++
@@ -94,11 +185,11 @@ type JsonArray struct {
 	lstValues []*Value
 }
 
-func (jsonArray *JsonArray) dump() string {
+func (jsonArray *JsonArray) Dump() string {
 	strRes := "["
 	nLen := len(jsonArray.lstValues)
 	for nIndex, item := range jsonArray.lstValues {
-		strRes += item.dump()
+		strRes += item.Dump()
 		if nLen-1 > nIndex {
 			strRes += ","
 		}

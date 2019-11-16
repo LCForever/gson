@@ -83,7 +83,7 @@ func (gson *Gson) Dump() (string, bool) {
 	if nil == gson.m_val {
 		return "", false
 	}
-	return gson.m_val.dump(), true
+	return gson.m_val.Dump(), true
 }
 
 //to be different with number, path should have quoto
@@ -156,7 +156,7 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 func (gson *Gson) Original(strPath string) (string, error) {
 	value := gson.Get(strPath)
 	if nil != value {
-		return value.dump(), nil
+		return value.Dump(), nil
 	}
 	return "", errors.New("invalid path")
 }

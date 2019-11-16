@@ -19,4 +19,5 @@ func main() {
 	fmt.Println(MyGson.Dump())
 	fmt.Println(MyGson.AddObject(`"json"`, "newitem", `"123456"`))
 	fmt.Println(MyGson.Dump())
+	fmt.Println(MyGson.Get(`"json"`).GetStringValue())
 }
