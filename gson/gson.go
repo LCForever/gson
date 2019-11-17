@@ -67,16 +67,15 @@ func parseValue(reader *bufio.Reader) *Value {
 }
 
 //export Parse
-func (gson *Gson) Parse(reader *bufio.Reader) (bRes bool) {
+func (gson *Gson) Parse(reader *bufio.Reader) (bRes bool, errRes error) {
 	defer func() {
 		if err := recover(); nil != err {
-			fmt.Println(err)
+			errRes = fmt.Errorf("%v", err)
 			bRes = false
 		}
 	}()
-	bRes = true
 	gson.m_val = parse(reader)
-	return
+	return true, nil
 }
 
 //export Dump
@@ -89,13 +88,14 @@ func (gson *Gson) Dump() (string, bool) {
 
 //to be different with number, path should have quoto
 //for example, `"a"."b"."c".1`
-func (gson *Gson) Get(strPath string) (res *Value) {
+func (gson *Gson) Get(strPath string) (res *Value, resErr error) {
 	defer func() {
 		if err := recover(); nil != err {
-			fmt.Println("invalid path")
+			resErr = fmt.Errorf("%v", err)
 			res = nil
 		}
 	}()
+	resErr = nil
 	res = gson.m_val
 	reader := bufio.NewReader(strings.NewReader(strPath))
 	var item byte
@@ -104,31 +104,31 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 	item, err = reader.ReadByte()
 	//empty path
 	if nil != err {
-		return
+		return res, nil
 	}
 	if PATH_SPLIT_CHAR == item {
-		panic("Invalid path")
+		return nil, errors.New("path should not start with '.'")
 	}
 
 	for {
 		if '"' == item || ('0' <= item && '9' >= item) {
 			if '"' == item {
 				if vObjectType != res.vType {
-					panic("invalid path")
+					return nil, errors.New("path is not match with type, expect object")
 				}
 				pResKey := parseString(reader)
 				res, bHas = ((*tJsonObject)(res.ptrValue)).mapObjects[*(*string)(pResKey.ptrValue)]
 				if !bHas {
-					panic("invalid path")
+					return nil, fmt.Errorf("no item named %s in the json", (*(*string)(pResKey.ptrValue)))
 				}
 			} else if '0' <= item && '9' >= item {
 				if vArrayType != res.vType {
-					panic("invalid path")
+					return nil, errors.New("path is not match with type, expect array")
 				}
 				reader.UnreadByte()
 				pathIndex := getPathIndex(reader)
 				if pathIndex >= len(((*tJsonArray)(res.ptrValue)).lstValues) {
-					panic("invalid path")
+					return nil, fmt.Errorf("array index %d is out of range", pathIndex)
 				}
 				res = ((*tJsonArray)(res.ptrValue)).lstValues[pathIndex]
 			}
@@ -144,22 +144,22 @@ func (gson *Gson) Get(strPath string) (res *Value) {
 			item, err = reader.ReadByte()
 			//empty path
 			if nil != err || PATH_SPLIT_CHAR == item {
-				panic("Invalid path")
+				return nil, errors.New("path ends with '.' or too many '.'")
 			}
 		} else {
-			panic("Invalid path")
+			return nil, fmt.Errorf("invalid char %c in the path", item)
 		}
 	}
-	return
+	return res, nil
 }
 
 //get the original string of the specified path
 func (gson *Gson) Original(strPath string) (string, error) {
-	value := gson.Get(strPath)
-	if nil != value {
-		return value.Dump(), nil
+	value, err := gson.Get(strPath)
+	if nil != err {
+		return "", err
 	}
-	return "", errors.New("invalid path")
+	return value.Dump(), nil
 }
 
 //the origval should be a correct value
@@ -178,45 +178,45 @@ func getValueByString(strOrigVal string) *Value {
 //Set item, need to have the key with the path
 func (gson *Gson) Set(strPath, strOrigVal string) (resErr error) {
 	defer func() {
-		if nil != recover() {
-			resErr = errors.New("Invalid value format")
+		if err := recover(); nil != err {
+			resErr = fmt.Errorf("%v", err)
 		}
 	}()
-	value := gson.Get(strPath)
-	if nil != value {
-		newVal := getValueByString(strOrigVal)
-		if nil != newVal {
-			*value = *newVal
-			return nil
-		}
-	} else {
-		return errors.New("Invalid path")
+	value, err := gson.Get(strPath)
+	if nil != err {
+		return err
 	}
-	return errors.New("Invalid value format")
+
+	newVal := getValueByString(strOrigVal)
+	if nil != newVal {
+		*value = *newVal
+		return nil
+	}
+	return errors.New("set failed")
 }
 
 //AddObject should have path, the item related with the path should be an object
 //There should also be key and value in the function
 func (gson *Gson) AddObject(strPath, strKey, strOrigVal string) (resErr error) {
 	defer func() {
-		if nil != recover() {
-			resErr = errors.New("Invalid value format")
+		if err := recover(); nil != err {
+			resErr = fmt.Errorf("%v", err)
 		}
 	}()
-	value := gson.Get(strPath)
-	if nil == value {
-		return errors.New("Invalid path")
+	value, err := gson.Get(strPath)
+	if nil != err {
+		return err
 	}
 	if vObjectType != value.vType {
-		return errors.New("The item with specified path should be an object.")
+		return errors.New("the item with specified path should be an object")
 	}
 	_, ok := ((*tJsonObject)(value.ptrValue)).mapObjects[strKey]
 	if ok {
-		return errors.New("The key already exist.")
+		return errors.New("the key already exist")
 	}
 	newVal := getValueByString(strOrigVal)
 	if nil == newVal {
-		return errors.New("Invalid value format")
+		return errors.New("invalid value format")
 	}
 	((*tJsonObject)(value.ptrValue)).mapObjects[strKey] = newVal
 	return nil
@@ -226,20 +226,20 @@ func (gson *Gson) AddObject(strPath, strKey, strOrigVal string) (resErr error) {
 //There should also be a value in the function
 func (gson *Gson) AddMember(strPath, strOrigVal string) (resErr error) {
 	defer func() {
-		if nil != recover() {
-			resErr = errors.New("Invalid value format")
+		if err := recover(); nil != err {
+			resErr = fmt.Errorf("%v", err)
 		}
 	}()
-	value := gson.Get(strPath)
-	if nil == value {
-		return errors.New("Invalid path")
+	value, err := gson.Get(strPath)
+	if nil != err {
+		return err
 	}
 	if vArrayType != value.vType {
-		return errors.New("The item with specified path should be an array.")
+		return errors.New("the item with specified path should be an array")
 	}
 	newVal := getValueByString(strOrigVal)
 	if nil == newVal {
-		return errors.New("Invalid value format")
+		return errors.New("invalid value format")
 	}
 	((*tJsonArray)(value.ptrValue)).lstValues = append(((*tJsonArray)(value.ptrValue)).lstValues, newVal)
 	return nil
@@ -254,7 +254,7 @@ func getPathIndex(reader *bufio.Reader) int {
 			if true == bHasValue {
 				return resIndex
 			}
-			panic("Invalid path index")
+			panic("empty index")
 		}
 		if '0' <= item && '9' >= item {
 			resIndex = 10*resIndex + (int)(item-'0')
@@ -263,7 +263,7 @@ func getPathIndex(reader *bufio.Reader) int {
 			reader.UnreadByte()
 			break
 		} else {
-			panic("Invalid path index")
+			panic("unexpected char in the array index")
 		}
 	}
 	return resIndex
@@ -274,7 +274,7 @@ func parse(reader *bufio.Reader) *Value {
 	//the format of json is invalid
 	item, err := reader.ReadByte()
 	if nil != err {
-		panic("invalid json format: no start")
+		panic("empty json string")
 	}
 	if '{' != item {
 		panic("json string not started with {")
@@ -383,7 +383,7 @@ func parseString(reader *bufio.Reader) *Value {
 	for {
 		item, err = reader.ReadByte()
 		if nil != err {
-			panic("string invalid in the json string")
+			panic("string not finished")
 		}
 		if '"' == item {
 			strValue = string(byteRes)
@@ -393,14 +393,14 @@ func parseString(reader *bufio.Reader) *Value {
 		if '\\' == item {
 			nextItem, err = reader.ReadByte()
 			if nil != err {
-				panic("string invalid in the json string")
+				panic("invalid end character: \\")
 			}
 			value, ok := byteSpecial[nextItem]
 			if ok {
 				byteRes = append(byteRes, value)
 				continue
 			} else {
-				panic("string invalid in the json string")
+				panic("invalid escape character")
 			}
 		}
 		byteRes = append(byteRes, item)
@@ -411,7 +411,7 @@ func parseString(reader *bufio.Reader) *Value {
 func parseNil(reader *bufio.Reader) *Value {
 	items, err := reader.Peek(3)
 	if nil != err || !('u' == items[0] && 'l' == items[1] && 'l' == items[2]) {
-		panic("invalid value")
+		panic("string should be started with quotation marks: " + string(items))
 	}
 	res := &Value{}
 	res.vType = vNilType
@@ -422,7 +422,7 @@ func parseNil(reader *bufio.Reader) *Value {
 func parseTrue(reader *bufio.Reader) *Value {
 	items, err := reader.Peek(3)
 	if nil != err || !('r' == items[0] && 'u' == items[1] && 'e' == items[2]) {
-		panic("invalid value")
+		panic("string should be started with quotation marks: " + string(items))
 	}
 	res := &Value{}
 	res.vType = vTrueType
@@ -433,7 +433,7 @@ func parseTrue(reader *bufio.Reader) *Value {
 func parseFalse(reader *bufio.Reader) *Value {
 	items, err := reader.Peek(4)
 	if nil != err || !('a' == items[0] && 'l' == items[1] && 's' == items[2] && 'e' == items[3]) {
-		panic("invalid value")
+		panic("string should be started with quotation marks: " + string(items))
 	}
 	res := &Value{}
 	res.vType = vFalseType
@@ -469,5 +469,5 @@ func parseNumber(reader *bufio.Reader) *Value {
 	if resNum, err := strconv.ParseFloat(strNum, 64); nil == err {
 		return &Value{vNumType, unsafe.Pointer(&tNumber{vDoubleType, unsafe.Pointer(&resNum), &strNum})}
 	}
-	panic("invalid json number")
+	panic("invalid number")
 }
