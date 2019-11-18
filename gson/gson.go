@@ -457,6 +457,7 @@ func parseNumber(reader *bufio.Reader) *Value {
 		}
 		byteNum = append(byteNum, item)
 	}
+	//the number parser may be a little slow
 	var strNum string = string(byteNum)
 	//parse with int firstly
 	if resNum, err := strconv.ParseInt(strNum, 10, 64); nil == err {
