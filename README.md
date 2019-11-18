@@ -50,7 +50,7 @@ This will print:
 ```
 json string not finished
 ```
-##Get value by path
+## Get value by path
 This pacakge supplies a way to obtain the value by dot natation path.
 ```go
 package main
@@ -84,7 +84,7 @@ This will print
 "111"
 false
 ```
-##update value by path
+## update value by path
 ```go
 package main
 import (
@@ -110,7 +110,7 @@ This will print
 ```
 {"json": [234,"hello world",345,[1,2,3],{"abc\n\"":false}]}
 ```
-##add value by path
+## add value by path
 ```go
 package main
 import (
@@ -136,7 +136,7 @@ This will print
 ```
 {"json": ["111",123,345,[1,2,3],{"abc\n\"":false},{"test":"value", "key":"hello world"}]}
 ```
-##Some other useful functions
+## Some other useful functions
 ```go
 //Get the value of an item
 value.GetArrayValue() >> []*Value, error
