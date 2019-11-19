@@ -1,6 +1,6 @@
 # gson
 gson is a Go package which provides a convenient way to do operations in a json document. It has features such as parse/modify json documents, dot natation paths, etc.
-##Parse json string
+## Parse json string
 The Parse function parses the json string in a dom style. The result is saved in a object named Gson.
 ```go
 package main
